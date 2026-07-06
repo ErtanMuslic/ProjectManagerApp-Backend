@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagerApp.Data;
 using ProjectManagerApp.Dtos;
+using ProjectManagerApp.DTOs;
 using ProjectManagerApp.Models;
 using ProjectManagerApp.Services;
 
@@ -83,33 +84,33 @@ namespace ProjectManagerApp.Controllers
         }
 
 
-        [HttpPost("admin/login")]
-        public async Task<ActionResult<AuthResponse>> AdminLogin([FromBody] AdminLoginRequest request)
+        [HttpPost("login")]
+        public async Task<ActionResult<AuthResponse>> Login([FromBody] LoginRequest request)
         {
-            var admin = await _db.Users.FirstOrDefaultAsync(u => u.Email == request.Email && u.Role == "Admin");
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
 
-            if (admin == null || admin.PasswordHash == null)
+            if (user == null || user.PasswordHash == null)
             {
-                return Unauthorized(new { message = "Wrong Email or Password" });
+                return Unauthorized(new { message = "Wrong email or password." });
             }
 
-            bool validPassword = BCrypt.Net.BCrypt.Verify(request.Password, admin.PasswordHash);
+            bool validPassword = BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash);
 
             if (!validPassword)
             {
-                return Unauthorized(new { message = "Wrong Email or Password" });
+                return Unauthorized(new { message = "Wrong email or password." });
             }
 
-            var token = _jwtService.GenerateToken(admin);
+            var token = _jwtService.GenerateToken(user);
 
             return Ok(new AuthResponse
             {
                 Token = token,
-                UserId = admin.Id,
-                Name = admin.Name,
-                Email = admin.Email,
-                Role = admin.Role,
-                Seniority = admin.Seniority
+                UserId = user.Id,
+                Name = user.Name,
+                Email = user.Email,
+                Role = user.Role,
+                Seniority = user.Seniority
             });
         }
 
@@ -133,6 +134,47 @@ namespace ProjectManagerApp.Controllers
             await _db.SaveChangesAsync();
 
             return Ok(new { message = "Admin created.", admin.Id, admin.Email });
+        }
+
+        [HttpPost("register")]
+        public async Task<ActionResult<AuthResponse>> Register([FromBody] RegisterRequest request)
+        {
+            var existingUser = await _db.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
+
+            if (existingUser != null)
+            {
+                return BadRequest(new { message = "Account already exists." });
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Password) || request.Password.Length < 6)
+            {
+                return BadRequest(new { message = "Password needs at least 6 characters." });
+            }
+
+            var user = new User
+            {
+                Name = request.Name,
+                Email = request.Email,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+                Role = "User",
+                Seniority = null,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _db.Users.Add(user);
+            await _db.SaveChangesAsync();
+
+            var token = _jwtService.GenerateToken(user);
+
+            return Ok(new AuthResponse
+            {
+                Token = token,
+                UserId = user.Id,
+                Name = user.Name,
+                Email = user.Email,
+                Role = user.Role,
+                Seniority = user.Seniority
+            });
         }
     }
 }

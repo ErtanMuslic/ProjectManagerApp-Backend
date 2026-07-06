@@ -43,19 +43,19 @@ namespace ProjectManagerApp.Controllers
         {
             if (!AllowedSeniorities.Contains(request.Seniority))
             {
-                return BadRequest(new { message = $"Senioritet mora biti jedan od: {string.Join(", ", AllowedSeniorities)}" });
+                return BadRequest(new { message = $"Seniority has to be one of: {string.Join(", ", AllowedSeniorities)}" });
             }
 
             var user = await _db.Users.FindAsync(id);
 
             if (user == null)
             {
-                return NotFound(new { message = "Korisnik nije pronađen." });
+                return NotFound(new { message = "User not found." });
             }
 
             if (user.Role != "User")
             {
-                return BadRequest(new { message = "Senioritet se može dodeliti samo korisnicima sa rolom 'User'." });
+                return BadRequest(new { message = "Seniority can only be added to users with role 'User'." });
             }
 
             user.Seniority = request.Seniority;
@@ -63,7 +63,7 @@ namespace ProjectManagerApp.Controllers
 
             return Ok(new
             {
-                message = "Senioritet uspešno ažuriran.",
+                message = "Seniority updated successfully.",
                 user.Id,
                 user.Name,
                 user.Seniority
