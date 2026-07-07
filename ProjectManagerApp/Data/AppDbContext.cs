@@ -15,6 +15,8 @@ namespace ProjectManagerApp.Data
         public DbSet<Column> Columns { get; set; }
         public DbSet<Card> Cards { get; set; }
 
+        public DbSet<Comment> Comments { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<User>()
@@ -38,6 +40,13 @@ namespace ProjectManagerApp.Data
                 .WithMany()
                 .HasForeignKey(c => c.AssignedUserId)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<Column>()
+                .HasOne(c => c.ParentColumn)
+                .WithMany(c => c.SubColumns)
+                .HasForeignKey(c => c.ParentColumnId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .IsRequired(false);
 
             base.OnModelCreating(modelBuilder);
         }

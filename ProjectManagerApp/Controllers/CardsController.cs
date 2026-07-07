@@ -23,11 +23,18 @@ namespace ProjectManagerApp.Controllers
         [HttpPost("columns/{columnId}/cards")]
         public async Task<IActionResult> CreateCard(int columnId, [FromBody] CreateCardRequest request)
         {
-            var columnExists = await _db.Columns.AnyAsync(c => c.Id == columnId);
-            if (!columnExists)
+            var column = await _db.Columns
+                .Include(c => c.SubColumns)
+                .FirstOrDefaultAsync(c => c.Id == columnId);
+
+            if (column == null)
                 return NotFound(new { message = "Column not found." });
 
-            // currently, we are just adding the new card at the end of the list in the column
+            if (column.SubColumns.Any())
+            {
+                return BadRequest(new { message = "This column has subcolumns - Cards are added in subcolumns not in main column." });
+            }
+
             var maxOrder = await _db.Cards
                 .Where(c => c.ColumnId == columnId)
                 .Select(c => (int?)c.Order)

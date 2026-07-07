@@ -9,6 +9,7 @@
     {
         public string Name { get; set; } = string.Empty;
         public int Order { get; set; }
+        public int? ParentColumnId { get; set; }  // null = Main Column
     }
 
     public class CreateCardRequest
@@ -44,6 +45,7 @@
         public string Name { get; set; } = string.Empty;
         public int Order { get; set; }
         public List<CardResponse> Cards { get; set; } = new();
+        public List<ColumnResponse> SubColumns { get; set; } = new();
     }
 
     public class CardResponse

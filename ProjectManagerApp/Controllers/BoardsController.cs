@@ -37,36 +37,50 @@ namespace ProjectManagerApp.Controllers
         public async Task<ActionResult<BoardResponse>> GetBoard(int id)
         {
             var board = await _db.Boards
-                .Include(b => b.Columns.OrderBy(c => c.Order))
-                    .ThenInclude(c => c.Cards.OrderBy(card => card.Order))
+                .Include(b => b.Columns)
+                    .ThenInclude(c => c.Cards)
                         .ThenInclude(card => card.AssignedUser)
+                .Include(b => b.Columns)
+                    .ThenInclude(c => c.SubColumns)
+                        .ThenInclude(sc => sc.Cards)
+                            .ThenInclude(card => card.AssignedUser)
                 .FirstOrDefaultAsync(b => b.Id == id);
 
             if (board == null)
-                return NotFound(new { message = "Table not found." });
+                return NotFound(new { message = "Tabla nije pronađena." });
 
             var response = new BoardResponse
             {
                 Id = board.Id,
                 Name = board.Name,
-                Columns = board.Columns.Select(c => new ColumnResponse
-                {
-                    Id = c.Id,
-                    Name = c.Name,
-                    Order = c.Order,
-                    Cards = c.Cards.Select(card => new CardResponse
-                    {
-                        Id = card.Id,
-                        Title = card.Title,
-                        Description = card.Description,
-                        Order = card.Order,
-                        AssignedUserId = card.AssignedUserId,
-                        AssignedUserName = card.AssignedUser?.Name
-                    }).ToList()
-                }).ToList()
+                Columns = board.Columns
+                    .Where(c => c.ParentColumnId == null)  // Only main columns on top
+                    .OrderBy(c => c.Order)
+                    .Select(c => MapColumn(c))
+                    .ToList()
             };
 
             return Ok(response);
+        }
+
+        private ColumnResponse MapColumn(Column c)
+        {
+            return new ColumnResponse
+            {
+                Id = c.Id,
+                Name = c.Name,
+                Order = c.Order,
+                Cards = c.Cards.OrderBy(card => card.Order).Select(card => new CardResponse
+                {
+                    Id = card.Id,
+                    Title = card.Title,
+                    Description = card.Description,
+                    Order = card.Order,
+                    AssignedUserId = card.AssignedUserId,
+                    AssignedUserName = card.AssignedUser?.Name
+                }).ToList(),
+                SubColumns = c.SubColumns.OrderBy(sc => sc.Order).Select(sc => MapColumn(sc)).ToList()
+            };
         }
 
 
@@ -135,17 +149,28 @@ namespace ProjectManagerApp.Controllers
             if (!boardExists)
                 return NotFound(new { message = "Table not found." });
 
+            if (request.ParentColumnId.HasValue)
+            {
+                var parentColumn = await _db.Columns.FindAsync(request.ParentColumnId.Value);
+                if (parentColumn == null || parentColumn.BoardId != boardId)
+                    return BadRequest(new { message = "Parent Column not found on this board." });
+
+                if (parentColumn.ParentColumnId != null)
+                    return BadRequest(new { message = "Subcolumn cant have its own subcolumn (only 1 tier)." });
+            }
+
             var column = new Column
             {
                 Name = request.Name,
                 Order = request.Order,
-                BoardId = boardId
+                BoardId = boardId,
+                ParentColumnId = request.ParentColumnId
             };
 
             _db.Columns.Add(column);
             await _db.SaveChangesAsync();
 
-            return Ok(new { column.Id, column.Name, column.Order });
+            return Ok(new { column.Id, column.Name, column.Order, column.ParentColumnId });
         }
 
 

@@ -13,6 +13,9 @@
         public int? AssignedUserId { get; set; }
         public User? AssignedUser { get; set; }
 
+        public DateTime? DueDate { get; set; }
+        public string Priority { get; set; } = "Medium"; // Default priority (Low,Medium,High)
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }
 }
