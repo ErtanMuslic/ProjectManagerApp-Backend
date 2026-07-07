@@ -41,9 +41,16 @@ namespace ProjectManagerApp.Controllers
                     .ThenInclude(c => c.Cards)
                         .ThenInclude(card => card.AssignedUser)
                 .Include(b => b.Columns)
+                    .ThenInclude(c => c.Cards)
+                        .ThenInclude(card => card.Comments)
+                .Include(b => b.Columns)
                     .ThenInclude(c => c.SubColumns)
                         .ThenInclude(sc => sc.Cards)
                             .ThenInclude(card => card.AssignedUser)
+                .Include(b => b.Columns)
+                    .ThenInclude(c => c.SubColumns)
+                        .ThenInclude(sc => sc.Cards)
+                            .ThenInclude(card => card.Comments)
                 .FirstOrDefaultAsync(b => b.Id == id);
 
             if (board == null)
@@ -77,7 +84,10 @@ namespace ProjectManagerApp.Controllers
                     Description = card.Description,
                     Order = card.Order,
                     AssignedUserId = card.AssignedUserId,
-                    AssignedUserName = card.AssignedUser?.Name
+                    AssignedUserName = card.AssignedUser?.Name,
+                    DueDate = card.DueDate,
+                    Priority = card.Priority,
+                    CommentCount = card.Comments.Count
                 }).ToList(),
                 SubColumns = c.SubColumns.OrderBy(sc => sc.Order).Select(sc => MapColumn(sc)).ToList()
             };

@@ -17,5 +17,7 @@
         public string Priority { get; set; } = "Medium"; // Default priority (Low,Medium,High)
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        public List<Comment> Comments { get; set; } = new();
     }
 }

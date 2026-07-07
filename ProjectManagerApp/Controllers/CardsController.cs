@@ -13,6 +13,8 @@ namespace ProjectManagerApp.Controllers
     {
         private readonly AppDbContext _db;
 
+        private static readonly string[] AllowedPriorities = { "Low", "Medium", "High" };
+
         public CardsController(AppDbContext db)
         {
             _db = db;
@@ -35,6 +37,11 @@ namespace ProjectManagerApp.Controllers
                 return BadRequest(new { message = "This column has subcolumns - Cards are added in subcolumns not in main column." });
             }
 
+            if(!AllowedPriorities.Contains(request.Priority))
+            {
+                return BadRequest(new { message = $"Priority must be one of: {string.Join(", ", AllowedPriorities)}" });
+            }
+
             var maxOrder = await _db.Cards
                 .Where(c => c.ColumnId == columnId)
                 .Select(c => (int?)c.Order)
@@ -46,6 +53,8 @@ namespace ProjectManagerApp.Controllers
                 Description = request.Description,
                 ColumnId = columnId,
                 AssignedUserId = request.AssignedUserId,
+                DueDate = request.DueDate,
+                Priority = request.Priority,
                 Order = maxOrder + 1,
                 CreatedAt = DateTime.UtcNow
             };
@@ -53,7 +62,7 @@ namespace ProjectManagerApp.Controllers
             _db.Cards.Add(card);
             await _db.SaveChangesAsync();
 
-            return Ok(new { card.Id, card.Title, card.Order });
+            return Ok(new { card.Id, card.Title, card.Order, card.DueDate, card.Priority });
         }
 
         // Update title, description, or assigned user of a card
@@ -68,6 +77,16 @@ namespace ProjectManagerApp.Controllers
             if (request.Title != null) card.Title = request.Title;
             if (request.Description != null) card.Description = request.Description;
             if (request.AssignedUserId.HasValue) card.AssignedUserId = request.AssignedUserId;
+            if (request.DueDate.HasValue) card.DueDate = request.DueDate;
+
+            if(request.Priority != null)
+            {
+                if(!AllowedPriorities.Contains(request.Priority))
+                {
+                    return BadRequest(new { message = $"Priority must be one of: {string.Join(", ", AllowedPriorities)}" });
+                }
+                card.Priority = request.Priority;
+            }
 
             await _db.SaveChangesAsync();
 

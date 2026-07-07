@@ -48,6 +48,12 @@ namespace ProjectManagerApp.Data
                 .OnDelete(DeleteBehavior.Cascade)
                 .IsRequired(false);
 
+            modelBuilder.Entity<Comment>()
+                .HasOne(c => c.User)
+                .WithMany()
+                .HasForeignKey(c => c.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
             base.OnModelCreating(modelBuilder);
         }
     }
