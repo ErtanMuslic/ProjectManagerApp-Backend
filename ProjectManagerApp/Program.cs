@@ -48,6 +48,10 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
+app.Urls.Clear();
+app.Urls.Add("https://0.0.0.0:7204");
+app.Urls.Add("http://0.0.0.0:5046");
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {

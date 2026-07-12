@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagerApp.Data;
@@ -27,6 +28,7 @@ namespace ProjectManagerApp.Controllers
         {
             var column = await _db.Columns
                 .Include(c => c.SubColumns)
+                .Include(c => c.Cards)
                 .FirstOrDefaultAsync(c => c.Id == columnId);
 
             if (column == null)
@@ -37,7 +39,10 @@ namespace ProjectManagerApp.Controllers
                 return BadRequest(new { message = "This column has subcolumns - Cards are added in subcolumns not in main column." });
             }
 
-            if(!AllowedPriorities.Contains(request.Priority))
+            if (column.CardLimit.HasValue && column.Cards.Count >= column.CardLimit.Value)
+                return BadRequest(new { message = $"Column '{column.Name}' has reached its WIP limit of {column.CardLimit.Value} cards." });
+
+            if (!AllowedPriorities.Contains(request.Priority))
             {
                 return BadRequest(new { message = $"Priority must be one of: {string.Join(", ", AllowedPriorities)}" });
             }
@@ -102,16 +107,28 @@ namespace ProjectManagerApp.Controllers
             if (card == null)
                 return NotFound(new { message = "Card not found." });
 
-            var targetColumnExists = await _db.Columns.AnyAsync(c => c.Id == request.NewColumnId);
-            if (!targetColumnExists)
+            var targetColumn = await _db.Columns
+            .Include(c => c.Cards)
+            .FirstOrDefaultAsync(c => c.Id == request.NewColumnId);
+
+            if (targetColumn == null)
                 return NotFound(new { message = "Target column not found." });
+
+            // Only enforce the limit if the card is actually moving to a different column
+            // (moving within the same column for reordering shouldn't be blocked by its own limit)
+            if (card.ColumnId != request.NewColumnId &&
+                targetColumn.CardLimit.HasValue &&
+                targetColumn.Cards.Count >= targetColumn.CardLimit.Value)
+            {
+                return BadRequest(new { message = $"Column '{targetColumn.Name}' has reached its WIP limit of {targetColumn.CardLimit.Value} cards." });
+            }
 
             card.ColumnId = request.NewColumnId;
             card.Order = request.NewOrder;
 
             await _db.SaveChangesAsync();
 
-            return Ok(new { message = "Card updated." });
+            return Ok(new { message = "Card moved." });
         }
 
         // Delete a card
@@ -127,6 +144,35 @@ namespace ProjectManagerApp.Controllers
             await _db.SaveChangesAsync();
 
             return Ok(new { message = "Card deleted." });
+        }
+
+
+
+        [Authorize(Roles = "User,Admin")]
+        [HttpGet("cards/my-tasks")]
+        public async Task<IActionResult> GetMyTasks()
+        {
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+            var tasks = await _db.Cards
+                .Where(c => c.AssignedUserId == userId)
+                .Include(c => c.Column)
+                    .ThenInclude(col => col.Board)
+                .Select(c => new MyTaskResponse
+                {
+                    CardId = c.Id,
+                    Title = c.Title,
+                    Description = c.Description,
+                    Priority = c.Priority,
+                    DueDate = c.DueDate,
+                    BoardId = c.Column.BoardId,
+                    BoardName = c.Column.Board.Name,
+                    ColumnName = c.Column.Name
+                })
+                .OrderBy(t => t.DueDate)
+                .ToListAsync();
+
+            return Ok(tasks);
         }
     }
 }

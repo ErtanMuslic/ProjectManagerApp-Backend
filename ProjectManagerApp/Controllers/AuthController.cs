@@ -1,4 +1,6 @@
-﻿using Google.Apis.Auth;
+﻿using System.Security.Claims;
+using Google.Apis.Auth;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagerApp.Data;
@@ -175,6 +177,82 @@ namespace ProjectManagerApp.Controllers
                 Role = user.Role,
                 Seniority = user.Seniority
             });
+        }
+
+        [Authorize]
+        [HttpGet("me")]
+        public async Task<ActionResult<AccountInfoResponse>> GetMyAccount()
+        {
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var user = await _db.Users.FindAsync(userId);
+
+            if (user == null)
+                return NotFound();
+
+            return Ok(new AccountInfoResponse
+            {
+                Id = user.Id,
+                Name = user.Name,
+                Email = user.Email,
+                Role = user.Role,
+                Seniority = user.Seniority,
+                HasPassword = user.PasswordHash != null
+            });
+        }
+
+        [Authorize]
+        [HttpPut("me")]
+        public async Task<IActionResult> UpdateMyAccount([FromBody] UpdateAccountRequest request)
+        {
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var user = await _db.Users.FindAsync(userId);
+
+            if (user == null)
+                return NotFound();
+
+            if (!string.IsNullOrWhiteSpace(request.Name))
+            {
+                user.Name = request.Name;
+            }
+
+            // Password change is only possible for accounts that have a password
+            // (Google SSO accounts have no PasswordHash and must manage credentials through Google)
+            if (!string.IsNullOrWhiteSpace(request.NewPassword))
+            {
+                if (user.PasswordHash == null)
+                    return BadRequest(new { message = "This account uses Google Sign-In and has no password to change." });
+
+                if (string.IsNullOrWhiteSpace(request.CurrentPassword) ||
+                    !BCrypt.Net.BCrypt.Verify(request.CurrentPassword, user.PasswordHash))
+                {
+                    return BadRequest(new { message = "Current password is incorrect." });
+                }
+
+                if (request.NewPassword.Length < 6)
+                    return BadRequest(new { message = "New password must be at least 6 characters." });
+
+                user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+            }
+
+            await _db.SaveChangesAsync();
+
+            return Ok(new { message = "Account updated.", user.Name });
+        }
+
+        [Authorize]
+        [HttpDelete("me")]
+        public async Task<IActionResult> DeleteMyAccount()
+        {
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var user = await _db.Users.FindAsync(userId);
+
+            if (user == null)
+                return NotFound();
+
+            _db.Users.Remove(user);
+            await _db.SaveChangesAsync();
+
+            return Ok(new { message = "Account deleted." });
         }
     }
 }

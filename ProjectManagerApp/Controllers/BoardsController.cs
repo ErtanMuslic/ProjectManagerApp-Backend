@@ -54,7 +54,7 @@ namespace ProjectManagerApp.Controllers
                 .FirstOrDefaultAsync(b => b.Id == id);
 
             if (board == null)
-                return NotFound(new { message = "Tabla nije pronađena." });
+                return NotFound(new { message = "Table not found." });
 
             var response = new BoardResponse
             {
@@ -77,6 +77,7 @@ namespace ProjectManagerApp.Controllers
                 Id = c.Id,
                 Name = c.Name,
                 Order = c.Order,
+                CardLimit = c.CardLimit,
                 Cards = c.Cards.OrderBy(card => card.Order).Select(card => new CardResponse
                 {
                     Id = card.Id,
@@ -91,6 +92,30 @@ namespace ProjectManagerApp.Controllers
                 }).ToList(),
                 SubColumns = c.SubColumns.OrderBy(sc => sc.Order).Select(sc => MapColumn(sc)).ToList()
             };
+        }
+
+        [Authorize(Roles = "Admin")]
+        [HttpPut("{boardId}/columns/reorder")]
+        public async Task<IActionResult> ReorderColumns(int boardId, [FromBody] ReorderColumnsRequest request)
+        {
+            var columnIds = request.Columns.Select(c => c.ColumnId).ToList();
+
+            var columns = await _db.Columns
+                .Where(c => columnIds.Contains(c.Id) && c.BoardId == boardId)
+                .ToListAsync();
+
+            if (columns.Count != request.Columns.Count)
+                return BadRequest(new { message = "One or more columns do not belong to this board." });
+
+            foreach (var item in request.Columns)
+            {
+                var column = columns.First(c => c.Id == item.ColumnId);
+                column.Order = item.NewOrder;
+            }
+
+            await _db.SaveChangesAsync();
+
+            return Ok(new { message = "Columns reordered." });
         }
 
 
@@ -174,7 +199,8 @@ namespace ProjectManagerApp.Controllers
                 Name = request.Name,
                 Order = request.Order,
                 BoardId = boardId,
-                ParentColumnId = request.ParentColumnId
+                ParentColumnId = request.ParentColumnId,
+                CardLimit = request.CardLimit
             };
 
             _db.Columns.Add(column);
@@ -195,9 +221,14 @@ namespace ProjectManagerApp.Controllers
             if (request.Name != null) column.Name = request.Name;
             if (request.Order.HasValue) column.Order = request.Order.Value;
 
+            if (request.ClearCardLimit)
+                column.CardLimit = null;
+            else if (request.CardLimit.HasValue)
+                column.CardLimit = request.CardLimit.Value;
+
             await _db.SaveChangesAsync();
 
-            return Ok(new { message = "Column updated.", column.Id, column.Name, column.Order });
+            return Ok(new { message = "Column updated.", column.Id, column.Name, column.Order, column.CardLimit });
         }
 
         [Authorize(Roles = "Admin")]

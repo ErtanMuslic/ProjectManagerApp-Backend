@@ -10,6 +10,7 @@
         public string Name { get; set; } = string.Empty;
         public int Order { get; set; }
         public int? ParentColumnId { get; set; }  // null = Main Column
+        public int? CardLimit { get; set; } 
     }
 
     public class CreateCardRequest
@@ -48,6 +49,7 @@
         public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
         public int Order { get; set; }
+        public int? CardLimit { get; set; } 
         public List<CardResponse> Cards { get; set; } = new();
         public List<ColumnResponse> SubColumns { get; set; } = new();
     }
@@ -74,6 +76,20 @@
     {
         public string? Name { get; set; }
         public int? Order { get; set; }
+        public int? CardLimit  { get; set; }
+        public bool ClearCardLimit { get; set; } = false; 
+    }
+
+
+    public class ReorderColumnsRequest
+    {
+        public List<ColumnOrderItem> Columns { get; set; } = new();
+    }
+
+    public class ColumnOrderItem
+    {
+        public int ColumnId { get; set; }
+        public int NewOrder { get; set; }
     }
 
 
@@ -93,5 +109,17 @@
     }
 
 
+
+    public class MyTaskResponse
+    {
+        public int CardId { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public string Priority { get; set; } = string.Empty;
+        public DateTime? DueDate { get; set; }
+        public int BoardId { get; set; }
+        public string BoardName { get; set; } = string.Empty;
+        public string ColumnName { get; set; } = string.Empty;
+    }
 
 }
