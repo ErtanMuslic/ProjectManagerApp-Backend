@@ -18,7 +18,7 @@ namespace ProjectManagerApp.Controllers
             _db = db;
         }
 
-        [Authorize(Roles = "Admin")]
+        [AllowAnonymous]
         [HttpGet]
         public async Task<IActionResult> GetAllUsers()
         {

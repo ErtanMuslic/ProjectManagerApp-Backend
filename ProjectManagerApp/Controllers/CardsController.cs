@@ -26,6 +26,17 @@ namespace ProjectManagerApp.Controllers
         [HttpPost("columns/{columnId}/cards")]
         public async Task<IActionResult> CreateCard(int columnId, [FromBody] CreateCardRequest request)
         {
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var currentUser = await _db.Users.FindAsync(userId);
+
+            if(currentUser == null)
+                return Unauthorized(new { message = "User not found." });
+
+            if (currentUser.Role != "User" && currentUser.Role != "Admin")
+            {
+                return Forbid();
+            }
+
             var column = await _db.Columns
                 .Include(c => c.SubColumns)
                 .Include(c => c.Cards)
@@ -75,6 +86,18 @@ namespace ProjectManagerApp.Controllers
         [HttpPut("cards/{id}")]
         public async Task<IActionResult> UpdateCard(int id, [FromBody] UpdateCardRequest request)
         {
+
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var currentUser = await _db.Users.FindAsync(userId);
+
+            if (currentUser == null) {
+                return Unauthorized();
+            }
+
+            if(currentUser.Role == "User" && currentUser.Seniority != "Senior") {
+                return Forbid();
+            }
+
             var card = await _db.Cards.FindAsync(id);
             if (card == null)
                 return NotFound(new { message = "Card not found." });
@@ -103,6 +126,19 @@ namespace ProjectManagerApp.Controllers
         [HttpPut("cards/{id}/move")]
         public async Task<IActionResult> MoveCard(int id, [FromBody] MoveCardRequest request)
         {
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var currentUser = await _db.Users.FindAsync(userId);
+
+            if (currentUser == null)
+            {
+                return Unauthorized();
+            }
+
+            if (currentUser.Role == "User" && currentUser.Seniority != "Senior")
+            {
+                return Forbid();
+            }
+
             var card = await _db.Cards.FindAsync(id);
             if (card == null)
                 return NotFound(new { message = "Card not found." });
@@ -136,6 +172,19 @@ namespace ProjectManagerApp.Controllers
         [HttpDelete("cards/{id}")]
         public async Task<IActionResult> DeleteCard(int id)
         {
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var currentUser = await _db.Users.FindAsync(userId);
+
+            if (currentUser == null)
+            {
+                return Unauthorized();
+            }
+
+            if (currentUser.Role == "User" && currentUser.Seniority != "Senior")
+            {
+                return Forbid();
+            }
+
             var card = await _db.Cards.FindAsync(id);
             if (card == null)
                 return NotFound();
@@ -173,6 +222,44 @@ namespace ProjectManagerApp.Controllers
                 .ToListAsync();
 
             return Ok(tasks);
+        }
+
+        [Authorize(Roles = "User,Admin")]
+        [HttpPut("cards/{id}/assign-to-me")]
+        public async Task<IActionResult> AssignToMe(int id)
+        {
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var card = await _db.Cards.FindAsync(id);
+
+            if (card == null)
+                return NotFound(new { message = "Card not found." });
+
+            if (card.AssignedUserId != null && card.AssignedUserId != userId)
+                return BadRequest(new { message = "This card is already assigned to someone else." });
+
+            card.AssignedUserId = userId;
+            await _db.SaveChangesAsync();
+
+            return Ok(new { message = "Card assigned to you." });
+        }
+
+        [Authorize(Roles = "User,Admin")]
+        [HttpPut("cards/{id}/unassign")]
+        public async Task<IActionResult> UnassignMe(int id)
+        {
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var card = await _db.Cards.FindAsync(id);
+
+            if (card == null)
+                return NotFound(new { message = "Card not found." });
+
+            if (card.AssignedUserId != userId)
+                return BadRequest(new { message = "You can only unassign yourself from a card." });
+
+            card.AssignedUserId = null;
+            await _db.SaveChangesAsync();
+
+            return Ok(new { message = "You have been unassigned from this card." });
         }
     }
 }
